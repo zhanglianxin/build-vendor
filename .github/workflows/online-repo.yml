@@ -1,0 +1,71 @@
+name: Build vendor of PHP project
+
+on:
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: 'repo name'
+        required: true
+        default: 'flarum/flarum'
+        type: 'string'
+      ref:
+        description: 'branch, tag, or hash'
+        required: true
+        default: 'master'
+        type: 'string'
+      php-version:
+        description: 'php version (semantic version)'
+        required: true
+        default: '8.3'
+        type: 'string'
+      app-env:
+        description: 'app env (local, prod)'
+        required: true
+        default: 'prod'
+        type: 'choice'
+        options:
+          - 'local'
+          - 'prod'
+jobs:
+  Build-vendor:
+    runs-on: ubuntu-latest
+    container:
+      image: php:${{ inputs.php-version }}-fpm
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.repo }}
+          ref: ${{ inputs.ref }}
+          fetch-depth: 1
+      - name: Install system dependencies
+        run: apt update && apt install -y zip unzip
+      - name: Install Composer
+        run:
+          curl -sS https://getcomposer.org/installer |
+          php -- --install-dir=/usr/local/bin --filename=composer
+      - name: Verify PHP and Composer
+        run: |
+          php -v
+          composer -V
+          php -m
+      - name: Install dependencies
+        run: |
+          if [[ ${{ inputs.app-env }} == 'prod' ]]; then
+            export COMPOSER_NO_DEV=1
+          fi
+
+          composer install --no-interaction --optimize-autoloader # dev
+          # verify autoload
+          php -r "error_reporting(E_ALL & ~E_DEPRECATED); require 'vendor/autoload.php';" || exit 1
+      - name: Set artifact name
+        id: artifact
+        shell: bash
+        run: |
+          REPO_NAME=$(echo "${{ inputs.repo }}" | tr '/' '-')
+          echo "name=${REPO_NAME}-${GITHUB_SHA::8}-php${{ inputs.php-version }}-${{ inputs.app-env }}" >> $GITHUB_OUTPUT
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.artifact.outputs.name }}-vendor
+          path: vendor
+          if-no-files-found: error
