@@ -1,0 +1,22 @@
+name: Build pages of httpstatuses.io
+
+on:
+  workflow_dispatch:
+
+jobs:
+  Build-pages:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: httpstatuses/httpstatuses
+          ref: main
+      - name: Setup Node.js version
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+      - name: Pull in dependencies
+        run: npm install
+      - name: Build statics
+        run: npm build
